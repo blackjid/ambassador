@@ -1,0 +1,65 @@
+version: 2.1
+
+# Secure environmet variables set from the Web UI:
+# - NETLIFY_AUTH_TOKEN (Netlify)
+# - GH_TOKEN (GitHub)
+
+_anchors:
+  "website-job": &website-job
+    machine:
+      image: "ubuntu-1604:201903-01"
+    working_directory: ~/project/ambassador
+
+commands:
+  "website-setup":
+      - install-node:
+          version: "11"
+      - oss-checkout
+
+jobs:
+  "website-preview-build":
+    <<: *website-job
+    steps:
+      - website-setup
+      - run: ./.ci/website-preview-build
+      - persist_to_workspace:
+          root: /tmp/getambassador.io
+          paths:
+            - public
+
+  "website-preview-blc":
+    <<: *website-job
+    steps:
+      - website-setup
+      - attach_workspace:
+          at: /tmp/getambassador.io
+      - run: ./.ci/install-blc
+      - run: ./.ci/website-preview-blc
+
+  "website-preview-publish":
+    <<: *website-job
+    steps:
+      - website-setup
+      - attach_workspace:
+          at: /tmp/getambassador.io
+      - run: ./.ci/website-preview-publish
+
+workflows:
+  "Docs":
+    jobs:
+      - "website-preview-build"
+      - "website-preview-blc":
+          requires: ["website-preview-build"]
+      - "website-preview-publish":
+          requires: ["website-preview-build"]
+          filters:
+            branches:
+              ignore:
+                - master
+                - /^release\/v1\.[0-9]+$/
+      - "website-prod-publish":
+          filters:
+            branches:
+              only:
+                - master
+                - /^release\/v1\.[0-9]+$/

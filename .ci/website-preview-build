@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# Copyright 2018-2020 Datawire. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License
+
+set -o errexit
+set -o nounset
+
+# Don't bother trying to build the website if GH_TOKEN is unset (as it will
+# be for a community PR).
+if [ -z "${GH_TOKEN:-}" ]; then
+	echo "[${0##*/}] skipping: GH_TOKEN is not set"
+	exit 0
+fi
+
+set -o xtrace
+
+amb_dir=$PWD # ~/project/ambassador/docs
+git_workdir=$(git rev-parse --show-toplevel) # either ~/project (for apro.git) or ~/project/ambassador (for ambassador.git)
+
+rm -rf "/tmp/getambassador.io"
+git clone --single-branch https://d6e-automaton:${GH_TOKEN}@github.com/datawire/getambassador.io.git "/tmp/getambassador.io"
+cd "/tmp/getambassador.io"
+git submodule update --init --reference="$git_workdir"
+# In the Real World, we use git submodule to update all the docs, but for our purposes here, we're
+# not "really" building all the docs -- we just want a single preview.
+# We don't do a simple checkout
+#     $ git -C submodules/latest checkout "$CIRCLE_SHA1"
+# because we might be in apro.git instead of ambassador.git
+rm -rf submodules/latest
+ln -sr $amb_dir submodules/latest
+
+npm install
+npm run build
